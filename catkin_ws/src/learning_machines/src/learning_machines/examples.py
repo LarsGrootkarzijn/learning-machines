@@ -22,7 +22,7 @@ from robobo_interface import (
 import numpy as np
 import matplotlib.pyplot as plt
 import random
-
+import pickle
 SENSOR_NAMES = [
     "BackL", "BackR", "FrontL", "FrontR",
     "FrontC", "FrontRR", "BackC", "FrontLL"
@@ -79,22 +79,26 @@ def get_reward(irs, action_idx):
 
     return reward
 
-def example1(rob: IRobobo, runs=10, episodes=10, alpha=0.1, gamma=0.9, epsilon=0.1):
+def run_single_trial(rob: IRobobo, runs=10, episodes=10, alpha=0.1, gamma=0.9, epsilon=0.1):
     q_table = {}
-    results = []
-
+    trial_rewards = []
+    trial_violations = []
+    best_q_table = None
+    best_avg_reward = float('-inf')
     for run in range(runs):
-        print(f"Run {run + 1}/{runs}")
+        print(f"  Run {run + 1}/{runs}")
         rob.play_simulation()
         initial_pos = rob.get_position()
         initial_ori = rob.get_orientation()
 
         episode_rewards = []
+        episode_violations = []
 
         for ep in range(episodes):
             irs = rob.read_irs()
             state = get_state(irs)
             total_reward = 0
+            violation_count = 0
 
             for step in range(30):
                 if random.random() < epsilon or state not in q_table:
@@ -108,6 +112,10 @@ def example1(rob: IRobobo, runs=10, episodes=10, alpha=0.1, gamma=0.9, epsilon=0
                 next_irs = rob.read_irs()
                 reward = get_reward(next_irs, action_idx)
                 total_reward += reward
+
+                # Count violation if FrontC > 100
+                if next_irs[4] > 50:
+                    violation_count += 1
 
                 next_state = get_state(next_irs)
 
@@ -124,22 +132,111 @@ def example1(rob: IRobobo, runs=10, episodes=10, alpha=0.1, gamma=0.9, epsilon=0
                 state = next_state
 
             episode_rewards.append(total_reward)
+            episode_violations.append(violation_count)
 
-        results.append(episode_rewards)
         rob.set_position(initial_pos, initial_ori)
         rob.reset_wheels()
         rob.stop_simulation()
 
-    avg_rewards = np.mean(results, axis=0)
-    plt.plot(avg_rewards, color="blue", marker='o')
-    plt.title("Average Reward Per Episode Across Runs")
+        trial_rewards.append(episode_rewards)
+        trial_violations.append(episode_violations)
+
+        avg_reward_this_run = np.mean(episode_rewards)
+        if avg_reward_this_run > best_avg_reward:
+            best_avg_reward = avg_reward_this_run
+            best_q_table = q_table.copy()  # shallow copy is OK because values are floats/lists
+
+        trial_rewards.append(episode_rewards)
+        trial_violations.append(episode_violations)
+
+        # Save best q_table to file:
+        with open('/root/results/best_q_table.pkl', 'wb') as f:
+            pickle.dump(best_q_table, f)
+
+    # Average over runs for this trial (shape: [runs][episodes] → [episodes])
+    return np.mean(trial_rewards, axis=0), np.mean(trial_violations, axis=0)
+
+def example1(rob: IRobobo, trials=30, runs=10, episodes=10, alpha=0.1, gamma=0.9, epsilon=0.1):
+    all_avg_rewards = []
+    all_avg_violations = []
+
+    for trial in range(trials):
+        print(f"\n=== Trial {trial + 1}/{trials} ===")
+        avg_rewards, avg_violations = run_single_trial(
+            rob, runs=runs, episodes=episodes, alpha=alpha, gamma=gamma, epsilon=epsilon
+        )
+        all_avg_rewards.append(avg_rewards)
+        all_avg_violations.append(avg_violations)
+
+    final_avg_rewards = np.mean(all_avg_rewards, axis=0)
+    final_avg_violations = np.mean(all_avg_violations, axis=0)
+
+    # Optional: std dev for shading
+    std_rewards = np.std(all_avg_rewards, axis=0)
+    std_violations = np.std(all_avg_violations, axis=0)
+
+    # Plotting
+    plt.figure(figsize=(12, 5))
+
+    # Reward plot
+    plt.subplot(1, 2, 1)
+    plt.plot(final_avg_rewards, label="Avg Reward", color="blue", marker='o')
+    plt.fill_between(range(episodes), final_avg_rewards - std_rewards, final_avg_rewards + std_rewards,
+                     color="blue", alpha=0.2, label="±1 std")
+    plt.title("Average Reward Per Episode")
     plt.xlabel("Episode")
-    plt.ylabel("Average Reward")
+    plt.ylabel("Reward")
     plt.grid(True)
+    plt.legend()
+
+    # Violation plot
+    plt.subplot(1, 2, 2)
+    plt.plot(final_avg_violations, label="Avg FrontC > 100", color="red", marker='x')
+    plt.fill_between(range(episodes), final_avg_violations - std_violations, final_avg_violations + std_violations,
+                     color="red", alpha=0.2, label="±1 std")
+    plt.title("Avg Violation Count Per Episode")
+    plt.xlabel("Episode")
+    plt.ylabel("Violations")
+    plt.grid(True)
+    plt.legend()
+
     plt.tight_layout()
-    plt.savefig("/root/results/qlearning_ir_all_sensors.png")
+    import os
+    #os.makedirs("results", exist_ok=True)
+    plt.savefig("/root/results/qlearning_final.png")
     plt.show()
 
+def example2(rob: IRobobo, q_table_path='/root/results/best_q_table.pkl', episodes=10):
+    import pickle
+
+    with open(q_table_path, 'rb') as f:
+        q_table = pickle.load(f)
+
+    rob.play_simulation()
+    initial_pos = rob.get_position()
+    initial_ori = rob.get_orientation()
+
+    for ep in range(episodes):
+        irs = rob.read_irs()
+        state = get_state(irs)
+        print(f"Episode {ep + 1}")
+
+        for step in range(30):
+            if state in q_table:
+                action_idx = np.argmax(q_table[state])
+            else:
+                action_idx = random.randint(0, NUM_ACTIONS - 1)
+
+            left_speed, right_speed = ACTIONS[action_idx]
+            rob.move_blocking(left_speed, right_speed, 100)
+
+            next_irs = rob.read_irs()
+            next_state = get_state(next_irs)
+            state = next_state
+
+    rob.set_position(initial_pos, initial_ori)
+    rob.reset_wheels()
+    rob.stop_simulation()
 
 def example2(rob: IRobobo, runs=10, episodes=50, alpha=0.1, gamma=0.9, epsilon=0.1):
     q_table = {}
