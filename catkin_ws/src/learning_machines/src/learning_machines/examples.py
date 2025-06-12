@@ -81,18 +81,19 @@ def get_reward(irs, action_idx):
 
 def run_single_trial(rob: IRobobo, runs=10, episodes=10, alpha=0.1, gamma=0.9, epsilon=0.1):
     q_table = {}
-    trial_rewards = []
-    trial_violations = []
+    trial_rewards = []      # Will store average reward per run
+    trial_violations = []   # Will store total violations per run
     best_q_table = None
     best_avg_reward = float('-inf')
+
     for run in range(runs):
         print(f"  Run {run + 1}/{runs}")
         rob.play_simulation()
         initial_pos = rob.get_position()
         initial_ori = rob.get_orientation()
 
-        episode_rewards = []
-        episode_violations = []
+        total_run_reward = 0
+        total_run_violations = 0
 
         for ep in range(episodes):
             irs = rob.read_irs()
@@ -113,8 +114,8 @@ def run_single_trial(rob: IRobobo, runs=10, episodes=10, alpha=0.1, gamma=0.9, e
                 reward = get_reward(next_irs, action_idx)
                 total_reward += reward
 
-                # Count violation if FrontC > 100
-                if next_irs[4] > 50:
+                # Count violation if FrontC > 50
+                if next_irs[4] > 100:
                     violation_count += 1
 
                 next_state = get_state(next_irs)
@@ -131,32 +132,30 @@ def run_single_trial(rob: IRobobo, runs=10, episodes=10, alpha=0.1, gamma=0.9, e
 
                 state = next_state
 
-            episode_rewards.append(total_reward)
-            episode_violations.append(violation_count)
+            total_run_reward += total_reward
+            total_run_violations += violation_count
 
         rob.set_position(initial_pos, initial_ori)
         rob.reset_wheels()
         rob.stop_simulation()
 
-        trial_rewards.append(episode_rewards)
-        trial_violations.append(episode_violations)
+        # Store per-run aggregates
+        trial_rewards.append(total_run_reward)
+        trial_violations.append(total_run_violations)
 
-        avg_reward_this_run = np.mean(episode_rewards)
+        avg_reward_this_run = total_run_reward / episodes
         if avg_reward_this_run > best_avg_reward:
             best_avg_reward = avg_reward_this_run
-            best_q_table = q_table.copy()  # shallow copy is OK because values are floats/lists
+            best_q_table = q_table.copy()
 
-        trial_rewards.append(episode_rewards)
-        trial_violations.append(episode_violations)
-
-        # Save best q_table to file:
+        # Save best q_table to file
         with open('/root/results/best_q_table.pkl', 'wb') as f:
             pickle.dump(best_q_table, f)
 
-    # Average over runs for this trial (shape: [runs][episodes] → [episodes])
-    return np.mean(trial_rewards, axis=0), np.mean(trial_violations, axis=0)
+    return trial_rewards, trial_violations
 
-def example1(rob: IRobobo, trials=30, runs=10, episodes=10, alpha=0.1, gamma=0.9, epsilon=0.1):
+
+def example1(rob: IRobobo, trials=15, runs=10, episodes=10, alpha=0.1, gamma=0.9, epsilon=0.1):
     all_avg_rewards = []
     all_avg_violations = []
 
