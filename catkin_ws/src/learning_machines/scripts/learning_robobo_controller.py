@@ -2,7 +2,7 @@
 import sys
 
 from robobo_interface import SimulationRobobo, HardwareRobobo
-from learning_machines import example1, example2, real_life
+from learning_machines import run_single_trial, run_experiment, real_life
 
 
 if __name__ == "__main__":

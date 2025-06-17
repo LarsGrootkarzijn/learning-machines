@@ -80,14 +80,8 @@ def get_reward(irs, action_idx):
 
     return reward
 
-def run_single_trial(
-    rob,
-    runs=10,
-    episodes=10,
-    alpha=0.1,
-    gamma=0.9,
-    epsilon=0.1
-):
+#this function runs a single trial of Qlearning. in this case 10 runs, each run containing 10 episodes
+def run_single_trial(rob, runs=10, episodes=10, alpha=0.1, gamma=0.9, epsilon=0.1):
     """One trial = several independent runs, each with several episodes."""
     q_table = {}
     trial_rewards     = []   # sum of rewards per run
@@ -168,16 +162,8 @@ def run_single_trial(
 
     return trial_rewards, trial_violations, straight_stats
 
-
-def example1(
-    rob,
-    trials=5,
-    runs=10,
-    episodes=10,
-    alpha=0.1,
-    gamma=0.9,
-    epsilon=0.1
-):
+#this function runs an experiment. multiple trials with in each trial multiple runs, 10 episodes again. for plotting and stat significance trials should be 30 usually
+def run_experiment(rob,trials=5,runs=10,episodes=10,alpha=0.1,gamma=0.9,epsilon=0.1):
     # these hold one array per trial; each array length == runs
     all_run_rewards    = []
     all_run_violations = []
@@ -244,7 +230,7 @@ def example1(
     plt.show()
 
 
-
+#run best model in real life
 def real_life(rob: IRobobo, q_table_path='/root/results/best_q_table.pkl', episodes=10):
     import pickle
 
@@ -275,64 +261,3 @@ def real_life(rob: IRobobo, q_table_path='/root/results/best_q_table.pkl', episo
     #rob.set_position(initial_pos, initial_ori)
     rob.reset_wheels()
     #rob.stop_simulation()
-
-def example2(rob: IRobobo, runs=10, episodes=50, alpha=0.1, gamma=0.9, epsilon=0.1):
-    q_table = {}
-    results = []
-
-    for run in range(runs):
-        print(f"Run {run + 1}/{runs}")
-        rob.play_simulation()
-        initial_pos = rob.get_position()
-        initial_ori = rob.get_orientation()
-
-        episode_rewards = []
-
-        for ep in range(episodes):
-            irs = rob.read_irs()
-            state = get_state(irs)
-            total_reward = 0
-
-            for step in range(30):
-                if random.random() < epsilon or state not in q_table:
-                    action_idx = random.randint(0, NUM_ACTIONS - 1)
-                else:
-                    action_idx = np.argmax(q_table[state])
-
-                left_speed, right_speed = ACTIONS[action_idx]
-                rob.move_blocking(left_speed, right_speed, 100)
-
-                next_irs = rob.read_irs()
-                reward = get_reward(next_irs, action_idx)
-                total_reward += reward
-
-                next_state = get_state(next_irs)
-
-                if state not in q_table:
-                    q_table[state] = [0.0] * NUM_ACTIONS
-                if next_state not in q_table:
-                    q_table[next_state] = [0.0] * NUM_ACTIONS
-
-                old_value = q_table[state][action_idx]
-                next_max = max(q_table[next_state])
-                new_value = (1 - alpha) * old_value + alpha * (reward + gamma * next_max)
-                q_table[state][action_idx] = new_value
-
-                state = next_state
-
-            episode_rewards.append(total_reward)
-
-        results.append(episode_rewards)
-        rob.set_position(initial_pos, initial_ori)
-        rob.reset_wheels()
-        rob.stop_simulation()
-
-    avg_rewards = np.mean(results, axis=0)
-    plt.plot(avg_rewards, color="green", marker='x')
-    plt.title("Example 2: Average Reward Per Episode Across Runs")
-    plt.xlabel("Episode")
-    plt.ylabel("Average Reward")
-    plt.grid(True)
-    plt.tight_layout()
-    plt.savefig("/root/results/qlearning_ir_example2.png")
-    plt.show()
