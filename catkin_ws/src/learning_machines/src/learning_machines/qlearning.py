@@ -232,13 +232,13 @@ def run_experiment(rob,trials=5,runs=10,episodes=10,alpha=0.1,gamma=0.9,epsilon=
 
 #run best model in real life
 def real_life(rob: IRobobo, q_table_path='/root/results/best_q_table.pkl', episodes=10):
-    import pickle
+    if isinstance(rob, SimulationRobobo):
+        rob.play_simulation()
+        initial_pos = rob.get_position()
+        initial_ori = rob.get_orientation()
 
     with open(q_table_path, 'rb') as f:
         q_table = pickle.load(f)
-
-    #initial_pos = rob.get_position()
-    #initial_ori = rob.get_orientation()
 
     for ep in range(episodes):
         irs = rob.read_irs()
@@ -258,6 +258,9 @@ def real_life(rob: IRobobo, q_table_path='/root/results/best_q_table.pkl', episo
             next_state = get_state(next_irs)
             state = next_state
 
-    #rob.set_position(initial_pos, initial_ori)
+    rob.set_position(initial_pos, initial_ori)
     rob.reset_wheels()
-    #rob.stop_simulation()
+    
+    if isinstance(rob, SimulationRobobo):
+        rob.stop_simulation()
+
