@@ -2,7 +2,7 @@
 import sys
 
 from robobo_interface import SimulationRobobo, HardwareRobobo
-from learning_machines import example1, example2
+from learning_machines import example1, example2, real_life
 
 
 if __name__ == "__main__":
@@ -19,4 +19,4 @@ if __name__ == "__main__":
     else:
         raise ValueError(f"{sys.argv[1]} is not a valid argument.")
 
-    example1(rob)
+    real_life(rob)

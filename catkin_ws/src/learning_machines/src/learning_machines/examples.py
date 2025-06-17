@@ -33,6 +33,7 @@ ACTIONS = [
     (50, -50),  # turn right
     (-50, 50),  # turn left
 ]
+STRAIGHT_ACTION_INDEX = 0  # update to your actual index for "go straight"
 
 NUM_ACTIONS = len(ACTIONS)
 OBSTACLE_THRESHOLD = 30
@@ -79,141 +80,179 @@ def get_reward(irs, action_idx):
 
     return reward
 
-def run_single_trial(rob: IRobobo, runs=10, episodes=10, alpha=0.1, gamma=0.9, epsilon=0.1):
+def run_single_trial(
+    rob,
+    runs=10,
+    episodes=10,
+    alpha=0.1,
+    gamma=0.9,
+    epsilon=0.1
+):
+    """One trial = several independent runs, each with several episodes."""
     q_table = {}
-    trial_rewards = []      # Will store average reward per run
-    trial_violations = []   # Will store total violations per run
-    best_q_table = None
-    best_avg_reward = float('-inf')
+    trial_rewards     = []   # sum of rewards per run
+    trial_violations  = []   # total violations per run
+    straight_stats    = []   # (straight_attempts, straight_hits) per run
+
+    best_q_table   = None
+    best_avg_reward = float("-inf")
 
     for run in range(runs):
         print(f"  Run {run + 1}/{runs}")
         rob.play_simulation()
-        initial_pos = rob.get_position()
-        initial_ori = rob.get_orientation()
+        init_pos = rob.get_position()
+        init_ori = rob.get_orientation()
 
-        total_run_reward = 0
-        total_run_violations = 0
+        total_run_reward      = 0
+        total_run_violations  = 0
+        run_straight_attempts = 0
+        run_straight_hits     = 0
 
         for ep in range(episodes):
-            irs = rob.read_irs()
+            irs   = rob.read_irs()
             state = get_state(irs)
-            total_reward = 0
-            violation_count = 0
 
             for step in range(30):
+                # ε-greedy
                 if random.random() < epsilon or state not in q_table:
                     action_idx = random.randint(0, NUM_ACTIONS - 1)
                 else:
-                    action_idx = np.argmax(q_table[state])
+                    action_idx = int(np.argmax(q_table[state]))
 
                 left_speed, right_speed = ACTIONS[action_idx]
                 rob.move_blocking(left_speed, right_speed, 100)
 
                 next_irs = rob.read_irs()
-                reward = get_reward(next_irs, action_idx)
-                total_reward += reward
+                reward   = get_reward(next_irs, action_idx)
+                total_run_reward += reward
 
-                # Count violation if FrontC > 50
+                # violation = front-centre IR > 100
                 if next_irs[4] > 100:
-                    violation_count += 1
+                    total_run_violations += 1
 
+                # straight-action bookkeeping
+                if action_idx == STRAIGHT_ACTION_INDEX:
+                    run_straight_attempts += 1
+                    if next_irs[4] > 100:
+                        run_straight_hits += 1
+
+                # Q-update ---------------------------------------------------
                 next_state = get_state(next_irs)
+                q_table.setdefault(state,      [0.0] * NUM_ACTIONS)
+                q_table.setdefault(next_state, [0.0] * NUM_ACTIONS)
 
-                if state not in q_table:
-                    q_table[state] = [0.0] * NUM_ACTIONS
-                if next_state not in q_table:
-                    q_table[next_state] = [0.0] * NUM_ACTIONS
-
-                old_value = q_table[state][action_idx]
+                old_q   = q_table[state][action_idx]
                 next_max = max(q_table[next_state])
-                new_value = (1 - alpha) * old_value + alpha * (reward + gamma * next_max)
-                q_table[state][action_idx] = new_value
+                q_table[state][action_idx] = (1 - alpha) * old_q + alpha * (reward + gamma * next_max)
 
                 state = next_state
 
-            total_run_reward += total_reward
-            total_run_violations += violation_count
-
-        rob.set_position(initial_pos, initial_ori)
+        # reset simulator state ---------------------------------------------
+        rob.set_position(init_pos, init_ori)
         rob.reset_wheels()
         rob.stop_simulation()
 
-        # Store per-run aggregates
-        trial_rewards.append(total_run_reward)
+        # per-run aggregates
+        trial_rewards   .append(total_run_reward)
         trial_violations.append(total_run_violations)
+        straight_stats  .append((run_straight_attempts, run_straight_hits))
 
         avg_reward_this_run = total_run_reward / episodes
         if avg_reward_this_run > best_avg_reward:
             best_avg_reward = avg_reward_this_run
-            best_q_table = q_table.copy()
+            best_q_table    = q_table.copy()
 
-        # Save best q_table to file
-        with open('/root/results/best_q_table.pkl', 'wb') as f:
-            pickle.dump(best_q_table, f)
+    # persist the best Q-table found in this trial
+    with open("/root/results/best_q_table.pkl", "wb") as f:
+        pickle.dump(best_q_table, f)
 
-    return trial_rewards, trial_violations
+    return trial_rewards, trial_violations, straight_stats
 
 
-def example1(rob: IRobobo, trials=15, runs=10, episodes=10, alpha=0.1, gamma=0.9, epsilon=0.1):
-    all_avg_rewards = []
-    all_avg_violations = []
+def example1(
+    rob,
+    trials=5,
+    runs=10,
+    episodes=10,
+    alpha=0.1,
+    gamma=0.9,
+    epsilon=0.1
+):
+    # these hold one array per trial; each array length == runs
+    all_run_rewards    = []
+    all_run_violations = []
+    all_run_attempts   = []
 
     for trial in range(trials):
         print(f"\n=== Trial {trial + 1}/{trials} ===")
-        avg_rewards, avg_violations = run_single_trial(
-            rob, runs=runs, episodes=episodes, alpha=alpha, gamma=gamma, epsilon=epsilon
+        run_rewards, run_violations, straight_stats = run_single_trial(
+            rob, runs, episodes, alpha, gamma, epsilon
         )
-        all_avg_rewards.append(avg_rewards)
-        all_avg_violations.append(avg_violations)
 
-    final_avg_rewards = np.mean(all_avg_rewards, axis=0)
-    final_avg_violations = np.mean(all_avg_violations, axis=0)
+        # unpack (attempts, hits) -> attempts
+        attempts, _ = zip(*straight_stats)
 
-    # Optional: std dev for shading
-    std_rewards = np.std(all_avg_rewards, axis=0)
-    std_violations = np.std(all_avg_violations, axis=0)
+        all_run_rewards   .append(run_rewards)
+        all_run_violations.append(run_violations)
+        all_run_attempts  .append(attempts)
 
-    # Plotting
+    # ---------- averages over all trials, per run --------------------------
+    mean_rewards    = np.mean(all_run_rewards,    axis=0)
+    mean_violations = np.mean(all_run_violations, axis=0)
+    mean_attempts   = np.mean(all_run_attempts,   axis=0)
+
+    # standard deviations (for shading if desired)
+    sd_rewards    = np.std(all_run_rewards,    axis=0)
+    sd_violations = np.std(all_run_violations, axis=0)
+
+    # ---------------- PLOTS -------------------------------------------------
+    # 1) reward & violation vs. episode (aggregated over runs)
     plt.figure(figsize=(12, 5))
-
-    # Reward plot
     plt.subplot(1, 2, 1)
-    plt.plot(final_avg_rewards, label="Avg Reward", color="blue", marker='o')
-    plt.fill_between(range(episodes), final_avg_rewards - std_rewards, final_avg_rewards + std_rewards,
-                     color="blue", alpha=0.2, label="±1 std")
-    plt.title("Average Reward Per Episode")
-    plt.xlabel("Episode")
-    plt.ylabel("Reward")
-    plt.grid(True)
-    plt.legend()
+    plt.plot(mean_rewards, label="Avg reward / run", marker="o")
+    plt.fill_between(range(runs), mean_rewards - sd_rewards, mean_rewards + sd_rewards, alpha=0.2)
+    plt.xlabel("Run"); plt.ylabel("Total reward"); plt.grid(True); plt.legend()
 
-    # Violation plot
     plt.subplot(1, 2, 2)
-    plt.plot(final_avg_violations, label="Avg FrontC > 100", color="red", marker='x')
-    plt.fill_between(range(episodes), final_avg_violations - std_violations, final_avg_violations + std_violations,
-                     color="red", alpha=0.2, label="±1 std")
-    plt.title("Avg Violation Count Per Episode")
-    plt.xlabel("Episode")
-    plt.ylabel("Violations")
-    plt.grid(True)
-    plt.legend()
+    plt.plot(mean_violations, label="Avg violations / run", marker="x", color="red")
+    plt.fill_between(range(runs), mean_violations - sd_violations, mean_violations + sd_violations,
+                     alpha=0.2, color="red")
+    plt.xlabel("Run"); plt.ylabel("Violation count"); plt.grid(True); plt.legend()
 
+    plt.suptitle("Reward and Violation per Run (averaged over trials)")
     plt.tight_layout()
-    import os
-    #os.makedirs("results", exist_ok=True)
     plt.savefig("/root/results/qlearning_final.png")
     plt.show()
 
-def example2(rob: IRobobo, q_table_path='/root/results/best_q_table.pkl', episodes=10):
+       # 2) straight attempts minus violations per run  ------------------------
+    all_differences = np.array(all_run_attempts) - np.array(all_run_violations)
+    mean_diff = np.mean(all_differences, axis=0)
+    std_diff  = np.std(all_differences, axis=0)
+
+    plt.figure(figsize=(6, 5))
+    plt.plot(mean_diff, label="Straight Attempts − Violations", color="blue", marker='s')
+    plt.fill_between(range(runs), mean_diff - std_diff, mean_diff + std_diff,
+                     color="blue", alpha=0.2, label="±1 std")
+    plt.axhline(0, linestyle="--", linewidth=0.8, color="gray")
+    plt.title("Net Straight Attempts Per Run")
+    plt.xlabel("Run")
+    plt.ylabel("Attempts − Violations")
+    plt.grid(True)
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig("/root/results/qlearning_straight_minus_violations.png")
+    plt.show()
+
+
+
+def real_life(rob: IRobobo, q_table_path='/root/results/best_q_table.pkl', episodes=10):
     import pickle
 
     with open(q_table_path, 'rb') as f:
         q_table = pickle.load(f)
 
-    rob.play_simulation()
-    initial_pos = rob.get_position()
-    initial_ori = rob.get_orientation()
+    #initial_pos = rob.get_position()
+    #initial_ori = rob.get_orientation()
 
     for ep in range(episodes):
         irs = rob.read_irs()
@@ -233,9 +272,9 @@ def example2(rob: IRobobo, q_table_path='/root/results/best_q_table.pkl', episod
             next_state = get_state(next_irs)
             state = next_state
 
-    rob.set_position(initial_pos, initial_ori)
+    #rob.set_position(initial_pos, initial_ori)
     rob.reset_wheels()
-    rob.stop_simulation()
+    #rob.stop_simulation()
 
 def example2(rob: IRobobo, runs=10, episodes=50, alpha=0.1, gamma=0.9, epsilon=0.1):
     q_table = {}
