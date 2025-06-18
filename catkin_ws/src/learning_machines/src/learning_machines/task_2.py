@@ -60,7 +60,7 @@ def get_reward(irs, action_idx):
     return reward
 
 #this function runs a single trial of Qlearning. in this case 10 runs, each run containing 10 episodes
-def run_single_trial(rob, runs=30, episodes=50, alpha=0.1, gamma=0.9, epsilon=0.1):
+def task_2_run_single_trial(rob, runs=30, episodes=50, alpha=0.1, gamma=0.9, epsilon=0.1):
     """One trial = several independent runs, each with several episodes."""
     q_table = {}
     trial_rewards     = []   # sum of rewards per run
@@ -171,13 +171,13 @@ def run_single_trial(rob, runs=30, episodes=50, alpha=0.1, gamma=0.9, epsilon=0.
             best_q_table    = q_table.copy()
 
     # persist the best Q-table found in this trial
-    with open("/root/results/best_q_table.pkl", "wb") as f:
+    with open("/root/results/task_2_best_q_table.pkl", "wb") as f:
         pickle.dump(best_q_table, f)
 
     return trial_rewards, trial_violations, straight_stats
 
 #this function runs an experiment. multiple trials with in each trial multiple runs, 10 episodes again. for plotting and stat significance trials should be 30 usually
-def run_experiment(rob,trials=5,runs=10,episodes=10,alpha=0.1,gamma=0.9,epsilon=0.1):
+def task_2_run_experiment(rob,trials=5,runs=10,episodes=10,alpha=0.1,gamma=0.9,epsilon=0.1):
     # these hold one array per trial; each array length == runs
     all_run_rewards    = []
     all_run_violations = []
@@ -185,7 +185,7 @@ def run_experiment(rob,trials=5,runs=10,episodes=10,alpha=0.1,gamma=0.9,epsilon=
 
     for trial in range(trials):
         print(f"\n=== Trial {trial + 1}/{trials} ===")
-        run_rewards, run_violations, straight_stats = run_single_trial(
+        run_rewards, run_violations, straight_stats = task_2_run_single_trial(
             rob, runs, episodes, alpha, gamma, epsilon
         )
 
@@ -245,7 +245,7 @@ def run_experiment(rob,trials=5,runs=10,episodes=10,alpha=0.1,gamma=0.9,epsilon=
 
 
 #run best model in real life
-def real_life(rob: IRobobo, q_table_path='/root/results/best_q_table.pkl', episodes=10):
+def task_2_real_life(rob: IRobobo, q_table_path='/root/results/task_2_best_q_table.pkl', episodes=10):
     if isinstance(rob, SimulationRobobo):
         rob.play_simulation()
         initial_pos = rob.get_position()

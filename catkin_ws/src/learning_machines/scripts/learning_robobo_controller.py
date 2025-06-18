@@ -2,7 +2,7 @@
 import sys
 
 from robobo_interface import SimulationRobobo, HardwareRobobo
-from learning_machines import run_single_trial, run_experiment, real_life
+from learning_machines import run_single_trial, run_experiment, real_life, task_2_run_single_trial, task_2_run_experiment, task_2_real_life
 
 
 if __name__ == "__main__":
@@ -15,8 +15,8 @@ if __name__ == "__main__":
     elif sys.argv[1] == "--hardware":
         rob = HardwareRobobo(camera=True)
     elif sys.argv[1] == "--simulation":
-        rob = SimulationRobobo(identifier=1)
+        rob = SimulationRobobo(identifier=0)
     else:
         raise ValueError(f"{sys.argv[1]} is not a valid argument.")
 
-    real_life(rob)
+    task_2_run_single_trial(rob)
