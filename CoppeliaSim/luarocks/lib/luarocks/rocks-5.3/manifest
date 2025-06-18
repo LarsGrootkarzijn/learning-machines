@@ -22,7 +22,7 @@ dependencies = {
       }
    },
    lpeg = {
-      ["1.1.0-1"] = {
+      ["1.0.2-1"] = {
          {
             constraints = {
                {
@@ -148,7 +148,7 @@ modules = {
       "luafilesystem/1.8.0-1"
    },
    lpeg = {
-      "lpeg/1.1.0-1"
+      "lpeg/1.0.2-1"
    },
    lpeglabel = {
       "lpeglabel/1.6.2-1"
@@ -187,7 +187,7 @@ modules = {
       "org.conman.cbor/1.3.5-1"
    },
    re = {
-      "lpeg/1.1.0-1"
+      "lpeg/1.0.2-1"
    },
    relabel = {
       "lpeglabel/1.6.2-1"
@@ -207,16 +207,10 @@ modules = {
    ["socket.http"] = {
       "luasocket/3.1.0-1"
    },
-   ["socket.serial"] = {
-      "luasocket/3.1.0-1"
-   },
    ["socket.smtp"] = {
       "luasocket/3.1.0-1"
    },
    ["socket.tp"] = {
-      "luasocket/3.1.0-1"
-   },
-   ["socket.unix"] = {
       "luasocket/3.1.0-1"
    },
    ["socket.url"] = {
@@ -237,13 +231,13 @@ repository = {
       }
    },
    lpeg = {
-      ["1.1.0-1"] = {
+      ["1.0.2-1"] = {
          {
             arch = "installed",
             commands = {},
             dependencies = {},
             modules = {
-               lpeg = "lpeg.so",
+               lpeg = "lpeg.dll",
                re = "re.lua"
             }
          }
@@ -256,7 +250,7 @@ repository = {
             commands = {},
             dependencies = {},
             modules = {
-               lpeglabel = "lpeglabel.so",
+               lpeglabel = "lpeglabel.dll",
                relabel = "relabel.lua"
             }
          }
@@ -286,7 +280,7 @@ repository = {
             commands = {},
             dependencies = {},
             modules = {
-               lfs = "lfs.so"
+               lfs = "lfs.dll"
             }
          }
       }
@@ -300,16 +294,14 @@ repository = {
             modules = {
                ltn12 = "ltn12.lua",
                mime = "mime.lua",
-               ["mime.core"] = "mime/core.so",
+               ["mime.core"] = "mime/core.dll",
                socket = "socket.lua",
-               ["socket.core"] = "socket/core.so",
+               ["socket.core"] = "socket/core.dll",
                ["socket.ftp"] = "socket/ftp.lua",
                ["socket.headers"] = "socket/headers.lua",
                ["socket.http"] = "socket/http.lua",
-               ["socket.serial"] = "socket/serial.so",
                ["socket.smtp"] = "socket/smtp.lua",
                ["socket.tp"] = "socket/tp.lua",
-               ["socket.unix"] = "socket/unix.so",
                ["socket.url"] = "socket/url.lua"
             }
          }
@@ -321,11 +313,11 @@ repository = {
             arch = "installed",
             commands = {},
             dependencies = {
-               lpeg = "1.1.0-1"
+               lpeg = "1.0.2-1"
             },
             modules = {
                ["org.conman.cbor"] = "org/conman/cbor.lua",
-               ["org.conman.cbor_c"] = "org/conman/cbor_c.so",
+               ["org.conman.cbor_c"] = "org/conman/cbor_c.dll",
                ["org.conman.cbor_s"] = "org/conman/cbor_s.lua",
                ["org.conman.cbormisc"] = "org/conman/cbormisc.lua"
             }

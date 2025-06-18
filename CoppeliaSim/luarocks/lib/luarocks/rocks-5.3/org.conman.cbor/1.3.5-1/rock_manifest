@@ -6,7 +6,7 @@ rock_manifest = {
    lib = {
       org = {
          conman = {
-            ["cbor_c.so"] = "0cc1981e196ec727b5b43c9003b33ff7"
+            ["cbor_c.dll"] = "7d6322f4d117bd5bc155d07a2f06b7b1"
          }
       }
    },

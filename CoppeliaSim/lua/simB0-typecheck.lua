@@ -11,7 +11,7 @@ function simB0.__addTypeCheck()
 
     wrapFunc('nodeSpin',function(origFunc)
         return function(...)
-            handle=checkargsEx(
+            local handle=checkargsEx(
                 {level=1},
                 {
                     {type='string'},
@@ -24,7 +24,7 @@ function simB0.__addTypeCheck()
 
     wrapFunc('pingResolver',function(origFunc)
         return function(...)
-            checkargsEx(
+            local checkargsEx(
                 {level=1},
                 {
                 },
@@ -36,7 +36,7 @@ function simB0.__addTypeCheck()
 
     wrapFunc('serviceClientCallJSON',function(origFunc)
         return function(...)
-            serviceClientHandle,request=checkargsEx(
+            local serviceClientHandle,request=checkargsEx(
                 {level=1},
                 {
                     {type='string'},
