@@ -55,12 +55,15 @@ def get_reward(irs, action_idx):
         else:  # penalize turning if going straight was possible
             reward -= 5.0
     else:
-        reward -= 5.0  # collision ahead
+        if action_idx > 0:
+            reward += 5.0 
+        else:
+            reward -= 5.0 
 
     return reward
 
 #this function runs a single trial of Qlearning. in this case 10 runs, each run containing 10 episodes
-def task_2_run_single_trial(rob, runs=30, episodes=50, alpha=0.1, gamma=0.9, epsilon=0.1):
+def task_2_run_single_trial(rob, runs=20, episodes=10, alpha=0.1, gamma=0.9, epsilon=0.1):
     """One trial = several independent runs, each with several episodes."""
     q_table = {}
     trial_rewards     = []   # sum of rewards per run
@@ -94,41 +97,41 @@ def task_2_run_single_trial(rob, runs=30, episodes=50, alpha=0.1, gamma=0.9, eps
 
                 left_speed, right_speed = ACTIONS[action_idx]
                 
-                rob.move_blocking(left_speed, right_speed, 100)
+                rob.move_blocking(left_speed, right_speed, 500)
 
-                # Get image from your method
+                # Original frame
                 img = rob.read_image_front()
 
-                # Convert BGR to HSV
-                hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+                # Image dimensions
+                h, w = img.shape[:2]
 
-                # Define range for green color in HSV
+                # --- crop: lower 50 % + middle 50 % ---------------------------------
+                roi = img[            h // 2 : ,          # rows 50 % … 100 %
+                        w // 4 : 3 * w // 4]            # cols 25 % … 75 %
+                # ---------------------------------------------------------------------
+
+                # Convert ROI to HSV
+                hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
+
+                # HSV range for green
                 lower_green = np.array([35, 40, 40])
                 upper_green = np.array([85, 255, 255])
 
-                # Create a binary mask where green colors are white
+                # Mask, filter, contours
                 mask = cv2.inRange(hsv, lower_green, upper_green)
-
-                # Apply mask to original image
-                green_filtered = cv2.bitwise_and(img, img, mask=mask)
-
-                # Find contours in the mask
                 contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-                # Filter contours and draw bounding boxes
-                min_area = 100  # Adjust to ignore small noise
+                min_area = 100
                 count = 0
                 for cnt in contours:
-                    area = cv2.contourArea(cnt)
-                    if area > min_area:
-                        x, y, w, h = cv2.boundingRect(cnt)
-                        cv2.rectangle(green_filtered, (x, y), (x + w, y + h), (0, 0, 255), 2)  # red box
+                    if cv2.contourArea(cnt) > min_area:
+                        x, y, w_box, h_box = cv2.boundingRect(cnt)
+                        cv2.rectangle(roi, (x, y), (x + w_box, y + h_box), (0, 0, 255), 2)
                         count += 1
 
-                # Save the image with bounding boxes
-                cv2.imwrite("/root/results/green_blocks_detected.png", green_filtered)
+                cv2.imwrite("/root/results/green_blocks_detected.png", roi)
+                print(f"Found {count} green blocks in cropped region.")
 
-                print(f"Found {count} green blocks in the full image.")
 
                 next_irs = rob.read_irs()
                 reward   = get_reward(count, action_idx)
@@ -244,37 +247,111 @@ def task_2_run_experiment(rob,trials=5,runs=10,episodes=10,alpha=0.1,gamma=0.9,e
     plt.show()
 
 
-#run best model in real life
-def task_2_real_life(rob: IRobobo, q_table_path='/root/results/task_2_best_q_table.pkl', episodes=10):
-    if isinstance(rob, SimulationRobobo):
-        rob.play_simulation()
-        initial_pos = rob.get_position()
-        initial_ori = rob.get_orientation()
+import cv2
+import numpy as np
+import pickle
+import random
+from pathlib import Path
 
-    with open(q_table_path, 'rb') as f:
+# ------------------------------------------------------------------
+# CONSTANTS you already have elsewhere
+# ------------------------------------------------------------------
+NUM_ACTIONS           = len(ACTIONS)        # e.g. 5
+STRAIGHT_ACTION_INDEX = ...                 # keep yours
+# ------------------------------------------------------------------
+
+
+def task_2_real_life(
+    rob,                                # IRobobo or SimulationRobobo
+    q_table_path='/root/results/task_2_best_q_table.pkl',
+    episodes=10,
+    min_area=100,                       # ignore blobs smaller than this
+    save_images=False,                  # set True to store annotated frames
+    image_dir=Path("/root/results/real_life_frames"),
+):
+    """
+    Execute the best (frozen) Q-table without updating it.
+    Adds camera processing to count green blocks each step.
+    """
+
+    # ------------------------------------------------------------------
+    # 1) Load trained Q-table
+    # ------------------------------------------------------------------
+    q_table_path = Path(q_table_path)
+    if not q_table_path.exists():
+        raise FileNotFoundError(f"No Q-table found at {q_table_path}")
+
+    with q_table_path.open("rb") as f:
         q_table = pickle.load(f)
 
+    # ------------------------------------------------------------------
+    # 2) If running in simulation, remember pose so we can reset later
+    # ------------------------------------------------------------------
+    sim_mode = isinstance(rob, SimulationRobobo)
+    if sim_mode:
+        rob.play_simulation()
+        initial_pos, initial_ori = rob.get_position(), rob.get_orientation()
+
+    if save_images:
+        image_dir.mkdir(parents=True, exist_ok=True)
+
+    # ------------------------------------------------------------------
+    # 3) Main episode loop
+    # ------------------------------------------------------------------
     for ep in range(episodes):
-        irs = rob.read_irs()
+        irs   = rob.read_irs()
         state = get_state(irs)
-        print(f"Episode {ep + 1}")
+        print(f"\nEpisode {ep + 1}/{episodes}")
 
         for step in range(30):
+            # Greedy policy (no ε-exploration)
             if state in q_table:
-                action_idx = np.argmax(q_table[state])
-            else:
-                action_idx = random.randint(0, NUM_ACTIONS - 1)
+                action_idx = int(np.argmax(q_table[state]))
+            else:                       # unknown state fallback
+                action_idx = random.randrange(NUM_ACTIONS)
 
             left_speed, right_speed = ACTIONS[action_idx]
-            rob.move_blocking(left_speed, right_speed, 100)
+            rob.move_blocking(left_speed, right_speed, 500)
 
-            next_irs = rob.read_irs()
-            next_state = get_state(next_irs)
-            state = next_state
+            # -------------- CAMERA: detect green blocks -----------------
+            img  = rob.read_image_front()
+            hsv  = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
-    rob.set_position(initial_pos, initial_ori)
+            mask = cv2.inRange(
+                hsv,
+                np.array([35, 40, 40]),   # lower_green
+                np.array([85, 255, 255])  # upper_green
+            )
+
+            contours, _ = cv2.findContours(
+                mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+            )
+            blocks = [
+                c for c in contours if cv2.contourArea(c) > min_area
+            ]
+            n_blocks = len(blocks)
+
+            # Optional visualisation / logging
+            if save_images:
+                vis = img.copy()
+                for c in blocks:
+                    x, y, w, h = cv2.boundingRect(c)
+                    cv2.rectangle(vis, (x, y), (x + w, y + h), (0, 0, 255), 2)
+                frame_name = image_dir / f"ep{ep:02d}_step{step:02d}.png"
+                cv2.imwrite(str(frame_name), vis)
+
+            print(f"  Step {step + 1:02d}: blocks={n_blocks}")
+
+            # -------------- update state for next step ------------------
+            next_irs  = rob.read_irs()
+            state     = get_state(next_irs)
+
+    # ------------------------------------------------------------------
+    # 4) Clean-up / reset pose
+    # ------------------------------------------------------------------
     rob.reset_wheels()
-    
-    if isinstance(rob, SimulationRobobo):
+    if sim_mode:
+        rob.set_position(initial_pos, initial_ori)
         rob.stop_simulation()
+
 
