@@ -129,9 +129,11 @@ assets
 CoppeliaSim
 models
 scenes
+scripts
 a.out
 Dockerfile
 quick_setup_linux.md
 quick_setup_macos.md
 quick_setup_windows.md
 results/green_blocks_detected.png
+README.md
