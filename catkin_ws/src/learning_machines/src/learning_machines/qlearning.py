@@ -33,7 +33,7 @@ ACTIONS = [
     (50, -50),  # turn right
     (-50, 50),  # turn left
 ]
-STRAIGHT_ACTION_INDEX = 0  # update to your actual index for "go straight"
+STRAIGHT_ACTION_INDEX = [0, 1, 2]  # update to your actual index for "go straight"
 
 NUM_ACTIONS = len(ACTIONS)
 OBSTACLE_THRESHOLD = 30
@@ -139,7 +139,7 @@ def run_single_trial(rob, runs=30, episodes=50, alpha=0.1, gamma=0.9, epsilon=0.
                     total_run_violations += 1
 
                 # straight-action bookkeeping
-                if action_idx == STRAIGHT_ACTION_INDEX:
+                if action_idx in STRAIGHT_ACTION_INDEX:
                     run_straight_attempts += 1
                     if next_irs[4] > 100:
                         run_straight_hits += 1
