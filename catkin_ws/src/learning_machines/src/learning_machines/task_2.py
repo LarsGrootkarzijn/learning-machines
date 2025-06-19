@@ -29,82 +29,37 @@ SENSOR_NAMES = [
 ]
 
 ACTIONS = [
-    (100, 100, 250),   # move forward small
-    (100, 100, 500),   # move forward medium
-    (100, 100, 750),   # move forward fast
-    (30, -30, 250),    # turn right small
-    (30, -30, 500),    # turn right medium
-    (30, -30, 750),    # turn right fast
-    (-30, 30, 250),    # turn left small
-    (-30, 30, 500),    # turn left medium
-    (-30, 30, 750),    # turn left fast
+    (100, 100),   # move forward
+    (50, -50),  # turn right
+    (-50, 50),  # turn left
 ]
-STRAIGHT_ACTION_INDEX = [0, 1, 2]  # update to your actual index for "go straight"
+STRAIGHT_ACTION_INDEX = 0  # update to your actual index for "go straight"
 
 NUM_ACTIONS = len(ACTIONS)
-OBSTACLE_THRESHOLD = 65
-OPPOSITE_ACTIONS = {
-    0: None, 
-    1: None,
-    2: None,
-    3: 6,
-    4: 7, 
-    5: 8,
-    6: 3,
-    7: 4,
-    8: 5
-}
+OBSTACLE_THRESHOLD = 30
 
-def downsample_mask(mask, grid_size=(3, 3)):
-    h, w = mask.shape
-    gh, gw = grid_size
-    cell_h, cell_w = h // gh, w // gw
-    
-    grid = np.zeros((gh, gw), dtype=np.uint8)
-
-    for i in range(gh):
-        for j in range(gw):
-            y1, y2 = i * cell_h, (i + 1) * cell_h
-            x1, x2 = j * cell_w, (j + 1) * cell_w
-            cell = mask[y1:y2, x1:x2]
-            if np.any(cell):  # if any pixel in the cell is non-zero 
-                grid[i, j] = 1
-
-    return grid.flatten()
-
-def get_state(irs, count, grid):
+def get_state(irs):
     front_sensors = [irs[2], irs[3], irs[4], irs[5], irs[7]]
     back_sensors = [irs[0], irs[1], irs[6]]
     discrete_front = [1 if val > OBSTACLE_THRESHOLD else 0 for val in front_sensors]
     discrete_back = [1 if val > OBSTACLE_THRESHOLD else 0 for val in back_sensors]
-    return tuple(discrete_front + discrete_back + [count] + grid)
+    return tuple(discrete_front + discrete_back)
 
-def get_reward(count, total_run_violations, action_idx, previous_action_idx, steps_bfr_collecting, collect):
+def get_reward(irs, action_idx):
     reward = 0.0
 
     # Encourage moving forward if path is clear
-    if count > 0:
-        if action_idx < 3:  # move forward
-            reward += 100.0
+    if irs > 0:
+        if action_idx == 0:  # move forward
+            reward += 5.0
         else:  # penalize turning if going straight was possible
-            reward -= 50.0
+            reward -= 5.0
     else:
-        # Penalize if there are no objects detected and it goes straight
-        if action_idx < 3:
-            reward -= 20.0 
+        if action_idx > 0:
+            reward += 5.0 
+        else:
+            reward -= 5.0 
 
-        # Punish for hitting walls if there are no green boxes on sight
-        reward -= total_run_violations*100
-    
-    # Punish for performing opposite actions 
-    if previous_action_idx and OPPOSITE_ACTIONS[action_idx] == previous_action_idx:
-        reward -= 50
-
-    # Punish for how many steps it did before collecting
-    reward -= 3*steps_bfr_collecting
-
-    # Reward if it collects a box
-    reward += 500*collect
     return reward
 
 #this function runs a single trial of Qlearning. in this case 10 runs, each run containing 10 episodes
@@ -117,11 +72,10 @@ def task_2_run_single_trial(rob, runs=20, episodes=10, alpha=0.1, gamma=0.9, eps
 
     best_q_table   = None
     best_avg_reward = float("-inf")
-    steps_bfr_collecting = 0
+
     for run in range(runs):
         print(f"  Run {run + 1}/{runs}")
         rob.play_simulation()
-        rob.set_phone_tilt_blocking(95, 30)
         init_pos = rob.get_position()
         init_ori = rob.get_orientation()
 
@@ -129,15 +83,10 @@ def task_2_run_single_trial(rob, runs=20, episodes=10, alpha=0.1, gamma=0.9, eps
         total_run_violations  = 0
         run_straight_attempts = 0
         run_straight_hits     = 0
-        count = 0
-        previous_action_idx = None
-        food_collected = 0
-        collect = 0
-        hit_wall = 0
-        grid = np.zeros(9)
+
         for ep in range(episodes):
             irs   = rob.read_irs()
-            state = get_state(irs, count, grid)
+            state = get_state(irs)
 
             for step in range(30):
                 # ε-greedy
@@ -146,24 +95,30 @@ def task_2_run_single_trial(rob, runs=20, episodes=10, alpha=0.1, gamma=0.9, eps
                 else:
                     action_idx = int(np.argmax(q_table[state]))
 
-                left_speed, right_speed, millis = ACTIONS[action_idx]
+                left_speed, right_speed = ACTIONS[action_idx]
                 
-                rob.move_blocking(left_speed, right_speed, millis)
+                rob.move_blocking(left_speed, right_speed, 500)
 
                 # Original frame
                 img = rob.read_image_front()
 
-                # Convert Image to HSV
-                hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+                # Image dimensions
+                h, w = img.shape[:2]
+
+                # --- crop: lower 50 % + middle 50 % ---------------------------------
+                roi = img[            h // 2 : ,          # rows 50 % … 100 %
+                        w // 4 : 3 * w // 4]            # cols 25 % … 75 %
+                # ---------------------------------------------------------------------
+
+                # Convert ROI to HSV
+                hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
 
                 # HSV range for green
                 lower_green = np.array([35, 40, 40])
                 upper_green = np.array([85, 255, 255])
 
-                # Mask, filter, grid, contours
+                # Mask, filter, contours
                 mask = cv2.inRange(hsv, lower_green, upper_green)
-                green_matrix = (mask > 0).astype(np.uint8)
-                grid = downsample_mask(green_matrix, (3, 3))
                 contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
                 min_area = 100
@@ -171,37 +126,29 @@ def task_2_run_single_trial(rob, runs=20, episodes=10, alpha=0.1, gamma=0.9, eps
                 for cnt in contours:
                     if cv2.contourArea(cnt) > min_area:
                         x, y, w_box, h_box = cv2.boundingRect(cnt)
-                        cv2.rectangle(img, (x, y), (x + w_box, y + h_box), (0, 0, 255), 2)
+                        cv2.rectangle(roi, (x, y), (x + w_box, y + h_box), (0, 0, 255), 2)
                         count += 1
 
-                cv2.imwrite("/root/results/green_blocks_detected.png", img)
+                cv2.imwrite("/root/results/green_blocks_detected.png", roi)
+                print(f"Found {count} green blocks in cropped region.")
+
 
                 next_irs = rob.read_irs()
-                steps_bfr_collecting += 1
+                reward   = get_reward(count, action_idx)
+                total_run_reward += reward
 
-                # If it finds food then reset steps before collecting and set collect boolean 
-                if food_collected < rob.get_nr_food_collected():
-                    steps_bfr_collecting = 0
-                    collect = 1
-                
-                food_collected = rob.get_nr_food_collected()
-
-                # Checks if it hits the wall
-                if any(x > 65 for x in [next_irs[2], next_irs[3], next_irs[4], next_irs[5], next_irs[7]]):
+                # violation = front-centre IR > 100
+                if next_irs[4] > 100:
                     total_run_violations += 1
-                    hit_wall = 1 
 
                 # straight-action bookkeeping
-                if action_idx in [0, 1, 2, 3, 4, 5, 6, 7, 8]:
+                if action_idx == STRAIGHT_ACTION_INDEX:
                     run_straight_attempts += 1
-                    if next_irs[4] > 65:
+                    if next_irs[4] > 100:
                         run_straight_hits += 1
-                
-                reward = get_reward(count, hit_wall, action_idx, previous_action_idx, steps_bfr_collecting, collect)
-                total_run_reward += reward
-                print(f"Reward in step: {reward}, hit_wall: {hit_wall}, Steps Before Collecing: {steps_bfr_collecting}, Collect: {collect}, Grid: {grid}")
+
                 # Q-update ---------------------------------------------------
-                next_state = get_state(next_irs, count, grid)
+                next_state = get_state(next_irs)
                 q_table.setdefault(state,      [0.0] * NUM_ACTIONS)
                 q_table.setdefault(next_state, [0.0] * NUM_ACTIONS)
 
@@ -210,26 +157,11 @@ def task_2_run_single_trial(rob, runs=20, episodes=10, alpha=0.1, gamma=0.9, eps
                 q_table[state][action_idx] = (1 - alpha) * old_q + alpha * (reward + gamma * next_max)
 
                 state = next_state
-                previous_action_idx = action_idx
-                collect = 0
-                hit_wall = 0
-
-                # If it found all boxes then reset the arena
-                if rob.get_nr_food_collected() == 7:
-                    # reset simulator state ---------------------------------------------
-                    rob.set_position(init_pos, init_ori)
-                    rob.reset_wheels()
-                    rob.stop_simulation()
-                    rob.play_simulation()
-                    rob.set_phone_tilt_blocking(95, 30)
 
         # reset simulator state ---------------------------------------------
         rob.set_position(init_pos, init_ori)
         rob.reset_wheels()
         rob.stop_simulation()
-        hit_wall = 0
-        collect = 0
-        steps_bfr_collecting = 0
 
         # per-run aggregates
         trial_rewards   .append(total_run_reward)
