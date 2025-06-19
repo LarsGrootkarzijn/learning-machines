@@ -32,12 +32,12 @@ ACTIONS = [
     (100, 100, 250),   # move forward small
     (100, 100, 500),   # move forward medium
     (100, 100, 750),   # move forward fast
-    (30, -30, 250),    # turn right small
-    (30, -30, 500),    # turn right medium
-    (30, -30, 750),    # turn right fast
-    (-30, 30, 250),    # turn left small
-    (-30, 30, 500),    # turn left medium
-    (-30, 30, 750),    # turn left fast
+    (70, -70, 250),    # turn right small
+    (70, -70, 500),    # turn right medium
+    (70, -70, 750),    # turn right fast
+    (-70, 70, 250),    # turn left small
+    (-70, 70, 500),    # turn left medium
+    (-70, 70, 750),    # turn left fast
 ]
 STRAIGHT_ACTION_INDEX = [0, 1, 2]  # update to your actual index for "go straight"
 
@@ -55,7 +55,7 @@ OPPOSITE_ACTIONS = {
     8: 5
 }
 
-def downsample_mask(mask, grid_size=(3, 3)):
+def downsample_mask(mask, grid_size=(3, 1)):
     h, w = mask.shape
     gh, gw = grid_size
     cell_h, cell_w = h // gh, w // gw
@@ -86,13 +86,19 @@ def get_reward(count, total_run_violations, action_idx, previous_action_idx, ste
     if count > 0:
         if action_idx < 3:  # move forward
             reward += 100.0
+            # Reward if it collects a box
+            reward += 500*collect
         else:  # penalize turning if going straight was possible
             reward -= 50.0
     else:
         # Penalize if there are no objects detected and it goes straight
         if action_idx < 3:
-            reward -= 20.0 
-
+            reward -= 20.0
+            # Reward if it collects a box
+            reward += 500*collect
+        else:
+            # Reward if it collects a box
+            reward -= 200*collect
         # Punish for hitting walls if there are no green boxes on sight
         reward -= total_run_violations*100
     
@@ -103,8 +109,6 @@ def get_reward(count, total_run_violations, action_idx, previous_action_idx, ste
     # Punish for how many steps it did before collecting
     reward -= 3*steps_bfr_collecting
 
-    # Reward if it collects a box
-    reward += 500*collect
     return reward
 
 #this function runs a single trial of Qlearning. in this case 10 runs, each run containing 10 episodes
@@ -328,6 +332,17 @@ NUM_ACTIONS           = len(ACTIONS)        # e.g. 5
 STRAIGHT_ACTION_INDEX = ...                 # keep yours
 # ------------------------------------------------------------------
 
+ACTIONS_REAL_LIFE = [
+    (100, 100, 750),   # move forward small
+    (100, 100, 750),   # move forward medium
+    (100, 100, 750),   # move forward fast
+    (30, -30, 750),    # turn right small
+    (30, -30, 750),    # turn right medium
+    (30, -30, 750),    # turn right fast
+    (-30, 30, 750),    # turn left small
+    (-30, 30, 750),    # turn left medium
+    (-30, 30, 750),    # turn left fast
+]
 
 def task_2_real_life(
     rob,                                # IRobobo or SimulationRobobo
@@ -381,7 +396,7 @@ def task_2_real_life(
             else:                       # unknown state fallback
                 action_idx = random.randrange(NUM_ACTIONS)
 
-            left_speed, right_speed, millis = ACTIONS[action_idx]
+            left_speed, right_speed, millis = ACTIONS_REAL_LIFE[action_idx]
             rob.move(left_speed, right_speed, millis)
 
             # -------------- CAMERA: detect green blocks -----------------
