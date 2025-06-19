@@ -382,7 +382,7 @@ def task_2_real_life(
                 action_idx = random.randrange(NUM_ACTIONS)
 
             left_speed, right_speed, millis = ACTIONS[action_idx]
-            rob.move_blocking(left_speed, right_speed, millis)
+            rob.move(left_speed, right_speed, millis)
 
             # -------------- CAMERA: detect green blocks -----------------
             img  = rob.read_image_front()
@@ -399,7 +399,16 @@ def task_2_real_life(
             contours, _ = cv2.findContours(
                 mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
             )
-
+            min_area = 100
+            count = 0
+            for cnt in contours:
+                area_box = cv2.contourArea(cnt)
+                if area_box > min_area:
+                    x, y, w_box, h_box = cv2.boundingRect(cnt)
+                    cv2.rectangle(img, (x, y), (x + w_box, y + h_box), (0, 0, 255), 2)
+                    count += 1
+            
+            cv2.imwrite("/root/results/green_blocks_detected.png", img)
             blocks = [
                 c for c in contours if cv2.contourArea(c) > min_area
             ]
@@ -414,11 +423,11 @@ def task_2_real_life(
                 frame_name = image_dir / f"ep{ep:02d}_step{step:02d}.png"
                 cv2.imwrite(str(frame_name), vis)
 
-            print(f"  Step {step + 1:02d}: blocks={n_blocks}")
+            #print(f"  Step {step + 1:02d}: blocks={n_blocks}")
 
             # -------------- update state for next step ------------------
             next_irs  = rob.read_irs()
-            state     = get_state(next_irs, n_blocks, grid)
+            state     = get_state(next_irs, count, grid)
 
     # ------------------------------------------------------------------
     # 4) Clean-up / reset pose
