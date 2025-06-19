@@ -199,7 +199,7 @@ def task_2_run_single_trial(rob, runs=20, episodes=10, alpha=0.1, gamma=0.9, eps
                 
                 reward = get_reward(count, hit_wall, action_idx, previous_action_idx, steps_bfr_collecting, collect)
                 total_run_reward += reward
-                print(f"Reward in step: {reward}, hit_wall: {hit_wall}, Steps Before Collecing: {steps_bfr_collecting}, Collect: {collect}, Grid: {grid}")
+                print(f"Reward in run {run}, episode {ep}, step {step}: {reward}, hit_wall: {hit_wall}, Steps Before Collecing: {steps_bfr_collecting}, Collect: {collect}, Grid: {grid}")
                 # Q-update ---------------------------------------------------
                 next_state = get_state(next_irs, count, grid)
                 q_table.setdefault(state,      [0.0] * NUM_ACTIONS)
@@ -363,12 +363,15 @@ def task_2_real_life(
     if save_images:
         image_dir.mkdir(parents=True, exist_ok=True)
 
+    rob.set_phone_tilt_blocking(95, 30)
+    n_blocks = 0
+    grid = np.zeros(9)
     # ------------------------------------------------------------------
     # 3) Main episode loop
     # ------------------------------------------------------------------
     for ep in range(episodes):
         irs   = rob.read_irs()
-        state = get_state(irs)
+        state = get_state(irs, n_blocks, grid)
         print(f"\nEpisode {ep + 1}/{episodes}")
 
         for step in range(30):
@@ -378,8 +381,8 @@ def task_2_real_life(
             else:                       # unknown state fallback
                 action_idx = random.randrange(NUM_ACTIONS)
 
-            left_speed, right_speed = ACTIONS[action_idx]
-            rob.move_blocking(left_speed, right_speed, 500)
+            left_speed, right_speed, millis = ACTIONS[action_idx]
+            rob.move_blocking(left_speed, right_speed, millis)
 
             # -------------- CAMERA: detect green blocks -----------------
             img  = rob.read_image_front()
@@ -390,10 +393,13 @@ def task_2_real_life(
                 np.array([35, 40, 40]),   # lower_green
                 np.array([85, 255, 255])  # upper_green
             )
+            green_matrix = (mask > 0).astype(np.uint8)
+            grid = downsample_mask(green_matrix, (3, 3))
 
             contours, _ = cv2.findContours(
                 mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
             )
+
             blocks = [
                 c for c in contours if cv2.contourArea(c) > min_area
             ]
@@ -412,7 +418,7 @@ def task_2_real_life(
 
             # -------------- update state for next step ------------------
             next_irs  = rob.read_irs()
-            state     = get_state(next_irs)
+            state     = get_state(next_irs, n_blocks, grid)
 
     # ------------------------------------------------------------------
     # 4) Clean-up / reset pose
