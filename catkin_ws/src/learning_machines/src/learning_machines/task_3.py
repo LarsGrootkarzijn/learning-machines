@@ -112,10 +112,10 @@ def get_reward(count, total_run_violations, action_idx, previous_action_idx, ste
     return reward
 
 #this function runs a single trial of Qlearning. in this case 10 runs, each run containing 10 episodes
-def task_2_run_single_trial(rob, runs=20, episodes=10, alpha=0.1, gamma=0.9, epsilon=0.1, retrain=True):
+def task_3_run_single_trial(rob, runs=20, episodes=10, alpha=0.1, gamma=0.9, epsilon=0.1, retrain=True):
     """One trial = several independent runs, each with several episodes."""
     
-    q_table_path=Path('/root/results/task_2_best_q_table.pkl')
+    q_table_path=Path('/root/results/task_3_best_q_table.pkl')
     if retrain:
         with q_table_path.open("rb") as f:
             q_table = pickle.load(f)
@@ -131,7 +131,7 @@ def task_2_run_single_trial(rob, runs=20, episodes=10, alpha=0.1, gamma=0.9, eps
     for run in range(runs):
         print(f"  Run {run + 1}/{runs}")
         rob.play_simulation()
-        rob.set_phone_tilt_blocking(95, 30)
+        rob.set_phone_tilt_blocking(109, 30)
         init_pos = rob.get_position()
         init_ori = rob.get_orientation()
 
@@ -141,10 +141,9 @@ def task_2_run_single_trial(rob, runs=20, episodes=10, alpha=0.1, gamma=0.9, eps
         run_straight_hits     = 0
         count = 0
         previous_action_idx = None
-        food_collected = 0
         collect = 0
         hit_wall = 0
-        grid = list(np.zeros(3))
+        grid = list(np.zeros(9))
         for ep in range(episodes):
             irs   = rob.read_irs()
             state = get_state(irs, count, grid)
@@ -166,13 +165,17 @@ def task_2_run_single_trial(rob, runs=20, episodes=10, alpha=0.1, gamma=0.9, eps
                 hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
                 # HSV range for green
-                lower_green = np.array([35, 40, 40])
-                upper_green = np.array([85, 255, 255])
+                lower_red1 = np.array([0, 100, 100])
+                upper_red1 = np.array([10, 255, 255])
+                lower_red2 = np.array([160, 100, 100])
+                upper_red2 = np.array([179, 255, 255])
 
                 # Mask, filter, grid, contours
-                mask = cv2.inRange(hsv, lower_green, upper_green)
-                green_matrix = (mask > 0).astype(np.uint8)
-                grid = downsample_mask(green_matrix, (3, 1))
+                mask1 = cv2.inRange(hsv, lower_red1, upper_red1)
+                mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
+                mask = cv2.bitwise_or(mask1, mask2)
+                red_matrix = (mask > 0).astype(np.uint8)
+                grid = downsample_mask(red_matrix, (3, 3))
                 contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
                 min_area = 100
@@ -183,17 +186,10 @@ def task_2_run_single_trial(rob, runs=20, episodes=10, alpha=0.1, gamma=0.9, eps
                         cv2.rectangle(img, (x, y), (x + w_box, y + h_box), (0, 0, 255), 2)
                         count += 1
 
-                cv2.imwrite("/root/results/green_blocks_detected.png", img)
+                cv2.imwrite("/root/results/red_block.png", img)
 
                 next_irs = rob.read_irs()
                 steps_bfr_collecting += 1
-
-                # If it finds food then reset steps before collecting and set collect boolean 
-                if food_collected < rob.get_nr_food_collected():
-                    steps_bfr_collecting = 0
-                    collect = 1
-                
-                food_collected = rob.get_nr_food_collected()
 
                 # Checks if it hits the wall
                 if any(x > 65 for x in [next_irs[2], next_irs[3], next_irs[4], next_irs[5], next_irs[7]]):
@@ -223,15 +219,6 @@ def task_2_run_single_trial(rob, runs=20, episodes=10, alpha=0.1, gamma=0.9, eps
                 collect = 0
                 hit_wall = 0
 
-                # If it found all boxes then reset the arena
-                if rob.get_nr_food_collected() == 7:
-                    # reset simulator state ---------------------------------------------
-                    rob.set_position(init_pos, init_ori)
-                    rob.reset_wheels()
-                    rob.stop_simulation()
-                    rob.play_simulation()
-                    rob.set_phone_tilt_blocking(95, 30)
-
         # reset simulator state ---------------------------------------------
         rob.set_position(init_pos, init_ori)
         rob.reset_wheels()
@@ -252,13 +239,13 @@ def task_2_run_single_trial(rob, runs=20, episodes=10, alpha=0.1, gamma=0.9, eps
             best_q_table    = q_table.copy()
 
     # persist the best Q-table found in this trial
-    with open("/root/results/task_2_best_q_table.pkl", "wb") as f:
+    with open("/root/results/task_3_best_q_table.pkl", "wb") as f:
         pickle.dump(best_q_table, f)
 
     return trial_rewards, trial_violations, straight_stats
 
 #this function runs an experiment. multiple trials with in each trial multiple runs, 10 episodes again. for plotting and stat significance trials should be 30 usually
-def task_2_run_experiment(rob,trials=5,runs=10,episodes=10,alpha=0.1,gamma=0.9,epsilon=0.1):
+def task_3_run_experiment(rob,trials=5,runs=10,episodes=10,alpha=0.1,gamma=0.9,epsilon=0.1):
     # these hold one array per trial; each array length == runs
     all_run_rewards    = []
     all_run_violations = []
@@ -266,7 +253,7 @@ def task_2_run_experiment(rob,trials=5,runs=10,episodes=10,alpha=0.1,gamma=0.9,e
 
     for trial in range(trials):
         print(f"\n=== Trial {trial + 1}/{trials} ===")
-        run_rewards, run_violations, straight_stats = task_2_run_single_trial(
+        run_rewards, run_violations, straight_stats = task_3_run_single_trial(
             rob, runs, episodes, alpha, gamma, epsilon
         )
 
@@ -350,7 +337,7 @@ ACTIONS_REAL_LIFE = [
     (-30, 30, 750),    # turn left fast
 ]
 
-def task_2_real_life(
+def task_3_real_life(
     rob,                                # IRobobo or SimulationRobobo
     q_table_path='/root/results/task_2_best_q_table.pkl',
     episodes=10,
@@ -460,3 +447,39 @@ def task_2_real_life(
 
 
 
+def task3_test(rob):
+    import time
+    # ------------------------------------------------------------------
+    # 2) If running in simulation, remember pose so we can reset later
+    # ------------------------------------------------------------------
+    sim_mode = isinstance(rob, SimulationRobobo)
+    if sim_mode:
+        rob.play_simulation()
+        initial_pos, initial_ori = rob.get_position(), rob.get_orientation()
+
+
+    rob.set_phone_tilt_blocking(109, 30)
+    while True:
+        # Original frame
+        img = rob.read_image_front()
+        flipped = cv2.flip(img, -1)
+        cv2.imwrite("/root/results/red_block.png", flipped)
+        # Convert Image to HSV
+        hsv = cv2.cvtColor(flipped, cv2.COLOR_BGR2HSV)
+
+        # HSV range for green
+        lower_red1 = np.array([0, 100, 100])
+        upper_red1 = np.array([10, 255, 255])
+        lower_red2 = np.array([160, 100, 100])
+        upper_red2 = np.array([179, 255, 255])
+
+        # Mask, filter, grid, contours
+        mask1 = cv2.inRange(hsv, lower_red1, upper_red1)
+        mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
+        mask = cv2.bitwise_or(mask1, mask2)
+
+        cv2.imwrite("/root/results/red_block_mask.png", mask)
+        red_matrix = (mask > 0).astype(np.uint8)
+        grid = downsample_mask(red_matrix, (3, 3))
+        print(grid)
+        time.sleep(5)
