@@ -95,9 +95,10 @@ def get_reward(hit_wall, red_grid, green_grid, action_idx, previous_action_idx):
                 reward -= 50
         # If robot doesnt see green area
         else:
-            # reward turn
+            # reward turning
             if action_idx >= 3:
                 reward += 100
+            # penalise forward
             else:
                 reward -= 50
     # If box is not in attachment
@@ -107,18 +108,21 @@ def get_reward(hit_wall, red_grid, green_grid, action_idx, previous_action_idx):
             # reward forward
             if action_idx < 3:
                 reward += 100
+            # penalise turning
             else:
                 reward -= 50
         # else
         else:
-            # reward turn
+            # reward turning
             if action_idx >= 3:
                 reward += 100
+            # penalise forward
             else:
                 reward -= 50
     
-    # Punish for hitting walls if there are no green boxes on sight
-    reward -= hit_wall*100
+    # Punish for hitting walls if nothing is on sight
+    if not np.any(green_grid[:] == 1) and not np.any(red_grid[:] == 1):
+        reward -= hit_wall*100
     
     # Punish for performing opposite actions 
     if previous_action_idx and OPPOSITE_ACTIONS[action_idx] == previous_action_idx:
