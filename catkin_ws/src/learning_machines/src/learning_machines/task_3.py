@@ -92,7 +92,7 @@ def get_reward(hit_wall, red_grid, green_grid, action_idx, previous_action_idx):
         if np.any(green_grid[: ,1] == 1):
             # reward forward
             if action_idx < 3:
-                reward += 100.0
+                reward += 200.0
             # penalise turning
             else: 
                 reward -= 50
@@ -104,10 +104,11 @@ def get_reward(hit_wall, red_grid, green_grid, action_idx, previous_action_idx):
     # If box is not in attachment
     else:
         # If robot sees box in the center
-        if np.any(red_grid[ : ,1] == 1):
+        if np.any(red_grid[: ,1] == 1):
+            reward += 100
             # reward forward
             if action_idx < 3:
-                reward += 100
+                reward += 200
             # penalise turning
             else:
                 reward -= 50
@@ -213,7 +214,7 @@ def task_3_run_single_trial(rob, runs=20, episodes=10, alpha=0.1, gamma=0.9, eps
                 
                 reward = get_reward(hit_wall, red_grid, green_grid, action_idx, previous_action_idx)
                 total_run_reward += reward
-                print(f"Reward in run {run}, episode {ep}, step {step}: {reward}, hit_wall: {hit_wall}, Red Grid: {red_grid}, Green Grid: {green_grid}")
+                print(f"Reward in run {run}, episode {ep}, step {step}: {reward}, hit_wall: {hit_wall}, Red Grid: {red_grid}, Green Grid: {green_grid}, Current Action : {action_idx}, Previous Action: {previous_action_idx}")
                 # Q-update ---------------------------------------------------
                 next_state = get_state(next_irs,red_grid, green_grid)
                 q_table.setdefault(state,      [0.0] * NUM_ACTIONS)
