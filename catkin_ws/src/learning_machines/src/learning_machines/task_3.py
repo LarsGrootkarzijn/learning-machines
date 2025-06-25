@@ -72,42 +72,57 @@ def downsample_mask(mask, grid_size=(3, 1)):
 
     return list(grid.flatten())
 
-def get_state(irs, count, grid):
+def get_state(irs, red_grid, green_grid):
     front_sensors = [irs[2], irs[3], irs[4], irs[5], irs[7]]
     back_sensors = [irs[0], irs[1], irs[6]]
     discrete_front = [1 if val > OBSTACLE_THRESHOLD else 0 for val in front_sensors]
     discrete_back = [1 if val > OBSTACLE_THRESHOLD else 0 for val in back_sensors]
-    return tuple(discrete_front + discrete_back + [count] + grid)
+    return tuple(discrete_front + discrete_back + [2 * a + b for a, b in zip(red_grid, green_grid)]
+)
 
-def get_reward(count, total_run_violations, action_idx, previous_action_idx, steps_bfr_collecting, collect):
+def get_reward(hit_wall, red_grid, green_grid, action_idx, previous_action_idx):
     reward = 0.0
 
-    # Encourage moving forward if path is clear
-    if count > 0:
-        if action_idx < 3:  # move forward
-            reward += 100.0
-            # Reward if it collects a box
-            reward += 500*collect
-        else:  # penalize turning if going straight was possible
-            reward -= 50.0
-    else:
-        # Penalize if there are no objects detected and it goes straight
-        if action_idx < 3:
-            reward -= 20.0
-            # Reward if it collects a box
-            reward += 500*collect
+    # If box is in attachment
+    if np.any(red_grid[-1] == 1) and np.all(red_grid[:-1] == 0):
+        # If robot sees green area
+        if np.any(green_grid[:] == 1):
+            # reward forward
+            if action_idx < 3:
+                reward += 100.0
+            # penalise turning
+            else: 
+                reward -= 50
+        # If robot doesnt see green area
         else:
-            # Reward if it collects a box
-            reward -= 200*collect
-        # Punish for hitting walls if there are no green boxes on sight
-        reward -= total_run_violations*100
+            # reward turn
+            if action_idx >= 3:
+                reward += 100
+            else:
+                reward -= 50
+    # If box is not in attachment
+    else:
+        # If robot sees box in the center
+        if np.any(red_grid[ : ,1] == 1):
+            # reward forward
+            if action_idx < 3:
+                reward += 100
+            else:
+                reward -= 50
+        # else
+        else:
+            # reward turn
+            if action_idx >= 3:
+                reward += 100
+            else:
+                reward -= 50
+    
+    # Punish for hitting walls if there are no green boxes on sight
+    reward -= hit_wall*100
     
     # Punish for performing opposite actions 
     if previous_action_idx and OPPOSITE_ACTIONS[action_idx] == previous_action_idx:
         reward -= 50
-
-    # Punish for how many steps it did before collecting
-    reward -= 3*steps_bfr_collecting
 
     return reward
 
@@ -139,14 +154,13 @@ def task_3_run_single_trial(rob, runs=20, episodes=10, alpha=0.1, gamma=0.9, eps
         total_run_violations  = 0
         run_straight_attempts = 0
         run_straight_hits     = 0
-        count = 0
         previous_action_idx = None
-        collect = 0
         hit_wall = 0
-        grid = list(np.zeros(9))
+        red_grid = list(np.zeros(9))
+        green_grid = list(np.zeros(9))
         for ep in range(episodes):
             irs   = rob.read_irs()
-            state = get_state(irs, count, grid)
+            state = get_state(irs, red_grid, green_grid)
             for step in range(30):
                 # ε-greedy
                 if random.random() < epsilon or state not in q_table:
@@ -175,22 +189,20 @@ def task_3_run_single_trial(rob, runs=20, episodes=10, alpha=0.1, gamma=0.9, eps
                 mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
                 mask = cv2.bitwise_or(mask1, mask2)
                 red_matrix = (mask > 0).astype(np.uint8)
-                grid = downsample_mask(red_matrix, (3, 3))
-                contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                red_grid = downsample_mask(red_matrix, (3, 3))
 
-                min_area = 100
-                count = 0
-                for cnt in contours:
-                    if cv2.contourArea(cnt) > min_area:
-                        x, y, w_box, h_box = cv2.boundingRect(cnt)
-                        cv2.rectangle(img, (x, y), (x + w_box, y + h_box), (0, 0, 255), 2)
-                        count += 1
+                # HSV range for green
+                lower_green = np.array([35, 40, 40])
+                upper_green = np.array([85, 255, 255])
+
+                # Mask, filter, grid, contours
+                mask_green = cv2.inRange(hsv, lower_green, upper_green)
+                green_matrix = (mask_green > 0).astype(np.uint8)
+                green_grid = downsample_mask(green_matrix, (3, 3))
 
                 cv2.imwrite("/root/results/red_block.png", img)
 
                 next_irs = rob.read_irs()
-                steps_bfr_collecting += 1
-
                 # Checks if it hits the wall
                 if any(x > 65 for x in [next_irs[2], next_irs[3], next_irs[4], next_irs[5], next_irs[7]]):
                     total_run_violations += 1
@@ -202,11 +214,11 @@ def task_3_run_single_trial(rob, runs=20, episodes=10, alpha=0.1, gamma=0.9, eps
                     if next_irs[4] > 65:
                         run_straight_hits += 1
                 
-                reward = get_reward(count, hit_wall, action_idx, previous_action_idx, steps_bfr_collecting, collect)
+                reward = get_reward(hit_wall, red_grid, green_grid, action_idx, previous_action_idx)
                 total_run_reward += reward
                 print(f"Reward in run {run}, episode {ep}, step {step}: {reward}, hit_wall: {hit_wall}, Steps Before Collecing: {steps_bfr_collecting}, Collect: {collect}, Grid: {grid}")
                 # Q-update ---------------------------------------------------
-                next_state = get_state(next_irs, count, grid)
+                next_state = get_state(next_irs,red_grid, green_grid)
                 q_table.setdefault(state,      [0.0] * NUM_ACTIONS)
                 q_table.setdefault(next_state, [0.0] * NUM_ACTIONS)
 
@@ -216,18 +228,10 @@ def task_3_run_single_trial(rob, runs=20, episodes=10, alpha=0.1, gamma=0.9, eps
 
                 state = next_state
                 previous_action_idx = action_idx
-                collect = 0
                 hit_wall = 0
 
-        # reset simulator state ---------------------------------------------
-        rob.set_position(init_pos, init_ori)
-        rob.reset_wheels()
         rob.stop_simulation()
         hit_wall = 0
-        collect = 0
-        steps_bfr_collecting = 0
-        print(total_run_reward)
-        print()
         # per-run aggregates
         trial_rewards   .append(total_run_reward)
         trial_violations.append(total_run_violations)
