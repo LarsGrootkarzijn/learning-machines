@@ -70,6 +70,9 @@ def downsample_mask(mask, grid_size=(3, 1)):
             if np.any(cell):  # if any pixel in the cell is non-zero 
                 grid[i, j] = 1
 
+    return grid
+
+def to_list(grid):
     return list(grid.flatten())
 
 def get_state(irs, red_grid, green_grid):
@@ -77,7 +80,7 @@ def get_state(irs, red_grid, green_grid):
     back_sensors = [irs[0], irs[1], irs[6]]
     discrete_front = [1 if val > OBSTACLE_THRESHOLD else 0 for val in front_sensors]
     discrete_back = [1 if val > OBSTACLE_THRESHOLD else 0 for val in back_sensors]
-    return tuple(discrete_front + discrete_back + [2 * a + b for a, b in zip(red_grid, green_grid)]
+    return tuple(discrete_front + discrete_back + [2 * a + b for a, b in zip(to_list(red_grid), to_list(green_grid))]
 )
 
 def get_reward(hit_wall, red_grid, green_grid, action_idx, previous_action_idx):
@@ -146,13 +149,10 @@ def task_3_run_single_trial(rob, runs=20, episodes=10, alpha=0.1, gamma=0.9, eps
 
     best_q_table   = None
     best_avg_reward = float("-inf")
-    steps_bfr_collecting = 0
     for run in range(runs):
         print(f"  Run {run + 1}/{runs}")
         rob.play_simulation()
         rob.set_phone_tilt_blocking(109, 30)
-        init_pos = rob.get_position()
-        init_ori = rob.get_orientation()
 
         total_run_reward      = 0
         total_run_violations  = 0
@@ -160,8 +160,8 @@ def task_3_run_single_trial(rob, runs=20, episodes=10, alpha=0.1, gamma=0.9, eps
         run_straight_hits     = 0
         previous_action_idx = None
         hit_wall = 0
-        red_grid = list(np.zeros(9))
-        green_grid = list(np.zeros(9))
+        red_grid = np.zeros((3,3), dtype=int)
+        green_grid = np.zeros((3,3), dtype=int)
         for ep in range(episodes):
             irs   = rob.read_irs()
             state = get_state(irs, red_grid, green_grid)
@@ -220,7 +220,7 @@ def task_3_run_single_trial(rob, runs=20, episodes=10, alpha=0.1, gamma=0.9, eps
                 
                 reward = get_reward(hit_wall, red_grid, green_grid, action_idx, previous_action_idx)
                 total_run_reward += reward
-                print(f"Reward in run {run}, episode {ep}, step {step}: {reward}, hit_wall: {hit_wall}, Steps Before Collecing: {steps_bfr_collecting}, Collect: {collect}, Grid: {grid}")
+                print(f"Reward in run {run}, episode {ep}, step {step}: {reward}, hit_wall: {hit_wall}, Red Grid: {red_grid}, Green Grid: {green_grid}")
                 # Q-update ---------------------------------------------------
                 next_state = get_state(next_irs,red_grid, green_grid)
                 q_table.setdefault(state,      [0.0] * NUM_ACTIONS)
