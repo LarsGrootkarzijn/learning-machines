@@ -2,7 +2,7 @@
 import sys
 
 from robobo_interface import SimulationRobobo, HardwareRobobo
-from learning_machines import run_single_trial, run_experiment, real_life, task_2_run_single_trial, task_2_run_experiment, task_2_real_life, task3_test, task_3_run_single_trial
+from learning_machines import run_single_trial, run_experiment, real_life, task_2_run_single_trial, task_2_run_experiment, task_2_real_life, task3_test, task_3_run_single_trial, task_3_real_life
 
 
 if __name__ == "__main__":
@@ -19,6 +19,5 @@ if __name__ == "__main__":
     else:
         raise ValueError(f"{sys.argv[1]} is not a valid argument.")
 
-    #task_2_real_life(rob, episodes=30)
-    task_3_run_single_trial(rob, runs=40, episodes=3, alpha=0.1, gamma=0.9, epsilon=0.1, retrain=False)
-    #task3_test(rob)
+    #task_3_real_life(rob, episodes=30)
+    task_3_run_single_trial(rob, runs=40, episodes=10, alpha=0.1, gamma=0.9, epsilon=0.1, retrain=True)
