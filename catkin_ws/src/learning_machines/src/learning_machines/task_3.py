@@ -100,7 +100,7 @@ def get_reward(hit_wall, red_grid, green_grid, action_idx, previous_action_idx):
         else:
             # reward turning
             if action_idx >= 3:
-                reward += 100
+                reward += 50
             # penalise forward
             else:
                 reward -= 50
@@ -118,7 +118,7 @@ def get_reward(hit_wall, red_grid, green_grid, action_idx, previous_action_idx):
         else:
             # reward turning
             if action_idx >= 3:
-                reward += 100
+                reward += 50
             # penalise forward
             else:
                 reward -= 50
