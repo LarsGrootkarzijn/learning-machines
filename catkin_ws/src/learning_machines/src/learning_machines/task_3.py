@@ -76,7 +76,7 @@ def to_list(grid):
     return list(grid.flatten())
 
 def get_state(irs, red_grid, green_grid):
-    front_sensors = [irs[2], irs[3], irs[4], irs[5], irs[7]]
+    front_sensors = [irs[2], irs[3], irs[4], irs[7]]
     back_sensors = [irs[0], irs[1], irs[6]]
     discrete_front = [1 if val > OBSTACLE_THRESHOLD else 0 for val in front_sensors]
     discrete_back = [1 if val > OBSTACLE_THRESHOLD else 0 for val in back_sensors]
@@ -124,8 +124,7 @@ def get_reward(hit_wall, red_grid, green_grid, action_idx, previous_action_idx):
                 reward -= 50
     
     # Punish for hitting walls if nothing is on sight
-    if not np.any(green_grid[:] == 1) and not np.any(red_grid[:] == 1):
-        reward -= hit_wall*100
+    reward -= hit_wall*100
     
     # Punish for performing opposite actions 
     if previous_action_idx and OPPOSITE_ACTIONS[action_idx] == previous_action_idx:
@@ -177,7 +176,7 @@ def task_3_run_single_trial(rob, runs=20, episodes=10, alpha=0.1, gamma=0.9, eps
                 rob.move_blocking(left_speed, right_speed, millis)
 
                 # Original frame
-                img = rob.read_image_front()
+                img = cv2.flip(rob.read_image_front(), -1)
 
                 # Convert Image to HSV
                 hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
@@ -205,7 +204,7 @@ def task_3_run_single_trial(rob, runs=20, episodes=10, alpha=0.1, gamma=0.9, eps
                 green_grid = downsample_mask(green_matrix, (3, 3))
 
                 cv2.imwrite("/root/results/red_block.png", img)
-
+                cv2.imwrite("/root/results/red_block_mask.png", mask)
                 next_irs = rob.read_irs()
                 # Checks if it hits the wall
                 if any(x > 65 for x in [next_irs[2], next_irs[3], next_irs[4], next_irs[5], next_irs[7]]):
@@ -233,6 +232,12 @@ def task_3_run_single_trial(rob, runs=20, episodes=10, alpha=0.1, gamma=0.9, eps
                 state = next_state
                 previous_action_idx = action_idx
                 hit_wall = 0
+
+                if rob.base_detects_food():
+                    rob.stop_simulation()
+                    rob.play_simulation()
+                    rob.set_phone_tilt_blocking(109, 30)
+
 
         rob.stop_simulation()
         hit_wall = 0
