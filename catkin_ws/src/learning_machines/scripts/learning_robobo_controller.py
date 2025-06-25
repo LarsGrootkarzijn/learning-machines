@@ -19,5 +19,5 @@ if __name__ == "__main__":
     else:
         raise ValueError(f"{sys.argv[1]} is not a valid argument.")
 
-    #task_2_real_life(rob, episodes=30)
-    task_2_run_single_trial(rob)
+    task_2_real_life(rob, episodes=30)
+    #task_2_run_single_trial(rob, runs=20, episodes=10, alpha=0.1, gamma=0.9, epsilon=0.1, retrain=True)

@@ -32,12 +32,12 @@ ACTIONS = [
     (100, 100, 250),   # move forward small
     (100, 100, 500),   # move forward medium
     (100, 100, 750),   # move forward fast
-    (70, -70, 250),    # turn right small
-    (70, -70, 500),    # turn right medium
-    (70, -70, 750),    # turn right fast
-    (-70, 70, 250),    # turn left small
-    (-70, 70, 500),    # turn left medium
-    (-70, 70, 750),    # turn left fast
+    (30, -30, 250),    # turn right small
+    (30, -30, 500),    # turn right medium
+    (30, -30, 750),    # turn right fast
+    (-30, 30, 250),    # turn left small
+    (-30, 30, 500),    # turn left medium
+    (-30, 30, 750),    # turn left fast
 ]
 STRAIGHT_ACTION_INDEX = [0, 1, 2]  # update to your actual index for "go straight"
 
@@ -70,7 +70,7 @@ def downsample_mask(mask, grid_size=(3, 1)):
             if np.any(cell):  # if any pixel in the cell is non-zero 
                 grid[i, j] = 1
 
-    return grid.flatten()
+    return list(grid.flatten())
 
 def get_state(irs, count, grid):
     front_sensors = [irs[2], irs[3], irs[4], irs[5], irs[7]]
@@ -112,9 +112,15 @@ def get_reward(count, total_run_violations, action_idx, previous_action_idx, ste
     return reward
 
 #this function runs a single trial of Qlearning. in this case 10 runs, each run containing 10 episodes
-def task_2_run_single_trial(rob, runs=20, episodes=10, alpha=0.1, gamma=0.9, epsilon=0.1):
+def task_2_run_single_trial(rob, runs=20, episodes=10, alpha=0.1, gamma=0.9, epsilon=0.1, retrain=True):
     """One trial = several independent runs, each with several episodes."""
-    q_table = {}
+    
+    q_table_path=Path('/root/results/task_2_best_q_table.pkl')
+    if retrain:
+        with q_table_path.open("rb") as f:
+            q_table = pickle.load(f)
+    else:
+        q_table = {}
     trial_rewards     = []   # sum of rewards per run
     trial_violations  = []   # total violations per run
     straight_stats    = []   # (straight_attempts, straight_hits) per run
@@ -138,11 +144,10 @@ def task_2_run_single_trial(rob, runs=20, episodes=10, alpha=0.1, gamma=0.9, eps
         food_collected = 0
         collect = 0
         hit_wall = 0
-        grid = np.zeros(9)
+        grid = list(np.zeros(3))
         for ep in range(episodes):
             irs   = rob.read_irs()
             state = get_state(irs, count, grid)
-
             for step in range(30):
                 # ε-greedy
                 if random.random() < epsilon or state not in q_table:
@@ -167,7 +172,7 @@ def task_2_run_single_trial(rob, runs=20, episodes=10, alpha=0.1, gamma=0.9, eps
                 # Mask, filter, grid, contours
                 mask = cv2.inRange(hsv, lower_green, upper_green)
                 green_matrix = (mask > 0).astype(np.uint8)
-                grid = downsample_mask(green_matrix, (3, 3))
+                grid = downsample_mask(green_matrix, (3, 1))
                 contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
                 min_area = 100
@@ -234,7 +239,8 @@ def task_2_run_single_trial(rob, runs=20, episodes=10, alpha=0.1, gamma=0.9, eps
         hit_wall = 0
         collect = 0
         steps_bfr_collecting = 0
-
+        print(total_run_reward)
+        print()
         # per-run aggregates
         trial_rewards   .append(total_run_reward)
         trial_violations.append(total_run_violations)
@@ -380,7 +386,7 @@ def task_2_real_life(
 
     rob.set_phone_tilt_blocking(95, 30)
     n_blocks = 0
-    grid = np.zeros(9)
+    grid = list(np.zeros(3))
     # ------------------------------------------------------------------
     # 3) Main episode loop
     # ------------------------------------------------------------------
@@ -409,7 +415,7 @@ def task_2_real_life(
                 np.array([85, 255, 255])  # upper_green
             )
             green_matrix = (mask > 0).astype(np.uint8)
-            grid = downsample_mask(green_matrix, (3, 3))
+            grid = downsample_mask(green_matrix, (3, 1))
 
             contours, _ = cv2.findContours(
                 mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
