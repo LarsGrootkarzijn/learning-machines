@@ -33,11 +33,11 @@ ACTIONS = [
     (100, 100, 500),   # move forward medium
     (100, 100, 750),   # move forward fast
     (20, -20, 100),    # turn right small
-    (20, -20, 200),    # turn right medium
-    (20, -20, 300),    # turn right fast
+    (20, -20, 300),    # turn right medium
+    (20, -20, 500),    # turn right fast
     (-20, 20, 100),    # turn left small
-    (-20, 20, 200),    # turn left medium
-    (-20, 20, 300),    # turn left fast
+    (-20, 20, 300),    # turn left medium
+    (-20, 20, 500),    # turn left fast
 ]
 STRAIGHT_ACTION_INDEX = [0, 1, 2]  # update to your actual index for "go straight"
 
@@ -88,41 +88,58 @@ def get_reward(hit_wall, red_grid, green_grid, action_idx, previous_action_idx):
 
     # If box is in attachment
     if np.any(red_grid[-1] == 1) and np.all(red_grid[:-1] == 0):
-        # If robot sees green area in the center
-        if np.any(green_grid[: ,1] == 1):
-            reward += 50
-            # reward forward
-            if action_idx < 3:
-                reward += 200.0
-            # penalise turning
-            else: 
-                reward -= 50
+        reward += 50
+        # If robot sees green area
+        if np.any(green_grid[:] == 1):
+            # If robot sees green area in the center
+            if np.any(green_grid[: ,1] == 1):
+                reward += 50
+                # reward forward
+                if action_idx < 3:
+                    reward += 200.0
+                # penalise turning
+                else: 
+                    reward -= 50
+            # If robot doesnt see green area in the center
+            else:
+                # penalise forward
+                if action_idx < 3:
+                    reward -= 50
+                # Reward small turns
+                elif action_idx == 3 or action_idx == 6: 
+                    reward += 50
         # If robot doesnt see green area
         else:
-            # penalise forward
-            if action_idx < 3:
-                reward -= 50
-            else:
+            # Reward big turns
+            if action_idx == 5 or action_idx == 8:
                 reward += 50
     # If box is not in attachment
     else:
-        # If robot sees box in the center
-        if np.any(red_grid[: ,1] == 1) and np.all(red_grid[:,0] == 0) and np.all(red_grid[:,2] == 0):
-            reward += 100
-            # reward forward
-            if action_idx < 3:
-                reward += 200
-            # penalise turning
+        if np.any(red_grid[:] == 1):
+            # If robot sees box in the center
+            if np.any(red_grid[: ,1] == 1) :
+                reward += 25
+                # reward forward
+                if action_idx < 3:
+                    reward += 50
+                # penalise turning
+                else:
+                    reward -= 12.5
+            # else
             else:
-                reward -= 50
-        # else
+                # penalise forward
+                if action_idx < 3:
+                    reward -= 12.5
+                # Reward small turns
+                elif action_idx == 3 or action_idx == 6: 
+                    reward += 12.5
         else:
-            # penalise forward
-            if action_idx < 3:
-                reward -= 50
+            # Reward big turns
+            if action_idx == 5 or action_idx == 8:
+                reward += 12.5
     
     # Punish for hitting walls if nothing is on sight
-    reward -= hit_wall*100
+    reward -= hit_wall*200
     
     # Punish for performing opposite actions 
     if previous_action_idx and OPPOSITE_ACTIONS[action_idx] == previous_action_idx:
