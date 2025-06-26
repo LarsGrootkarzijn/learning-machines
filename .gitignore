@@ -126,3 +126,4 @@ dmypy.json
 
 .venv
 results/green_blocks_detected.png
+.git

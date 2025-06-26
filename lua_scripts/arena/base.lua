@@ -22,8 +22,8 @@ function sysCall_init()
     end
     sim.setObjectPosition(base, -1, base_pos)
     
-    food_pos[1] = ((math.random() * 2) - 4.1)
-    food_pos[2] = ((math.random() * 2) - 0.2)
+    food_pos[1] = ((math.random() * 1.7) - 3.9)
+    food_pos[2] = ((math.random() * 1.7))
     
     if
         food_pos[2] > -0.2

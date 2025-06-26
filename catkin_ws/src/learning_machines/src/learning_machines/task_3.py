@@ -90,6 +90,7 @@ def get_reward(hit_wall, red_grid, green_grid, action_idx, previous_action_idx):
     if np.any(red_grid[-1] == 1) and np.all(red_grid[:-1] == 0):
         # If robot sees green area in the center
         if np.any(green_grid[: ,1] == 1):
+            reward += 50
             # reward forward
             if action_idx < 3:
                 reward += 200.0
@@ -101,10 +102,12 @@ def get_reward(hit_wall, red_grid, green_grid, action_idx, previous_action_idx):
             # penalise forward
             if action_idx < 3:
                 reward -= 50
+            else:
+                reward += 50
     # If box is not in attachment
     else:
         # If robot sees box in the center
-        if np.any(red_grid[: ,1] == 1):
+        if np.any(red_grid[: ,1] == 1) and np.all(red_grid[:,0] == 0) and np.all(red_grid[:,2] == 0):
             reward += 100
             # reward forward
             if action_idx < 3:
@@ -212,7 +215,15 @@ def task_3_run_single_trial(rob, runs=20, episodes=10, alpha=0.1, gamma=0.9, eps
                     if next_irs[4] > 65:
                         run_straight_hits += 1
                 
+                
                 reward = get_reward(hit_wall, red_grid, green_grid, action_idx, previous_action_idx)
+                
+                if rob.base_detects_food():
+                    rob.stop_simulation()
+                    rob.play_simulation()
+                    rob.set_phone_tilt_blocking(109, 30)
+                    reward += 500
+                
                 total_run_reward += reward
                 print(f"Reward in run {run}, episode {ep}, step {step}: {reward}, hit_wall: {hit_wall}, Red Grid: {red_grid}, Green Grid: {green_grid}, Current Action : {action_idx}, Previous Action: {previous_action_idx}")
                 # Q-update ---------------------------------------------------
@@ -228,10 +239,7 @@ def task_3_run_single_trial(rob, runs=20, episodes=10, alpha=0.1, gamma=0.9, eps
                 previous_action_idx = action_idx
                 hit_wall = 0
 
-                if rob.base_detects_food():
-                    rob.stop_simulation()
-                    rob.play_simulation()
-                    rob.set_phone_tilt_blocking(109, 30)
+                
 
 
         rob.stop_simulation()
