@@ -88,36 +88,36 @@ def get_reward(hit_wall, red_grid, green_grid, action_idx, previous_action_idx):
 
     # If box is in attachment
     if np.any(red_grid[-1] == 1) and np.all(red_grid[:-1] == 0):
-        reward += 50
+        reward += 200
         # If robot sees green area
         if np.any(green_grid[:] == 1):
+            reward += 200
             # If robot sees green area in the center
             if np.any(green_grid[: ,1] == 1):
-                reward += 50
                 # reward forward
                 if action_idx < 3:
-                    reward += 200.0
+                    reward += 500.0
                 # penalise turning
                 else: 
-                    reward -= 50
+                    reward -= 500
             # If robot doesnt see green area in the center
             else:
                 # penalise forward
                 if action_idx < 3:
-                    reward -= 50
+                    reward -= 300
                 # Reward small turns
                 elif action_idx == 3 or action_idx == 6: 
-                    reward += 50
+                    reward += 200
         # If robot doesnt see green area
         else:
             # Reward big turns
             if action_idx == 5 or action_idx == 8:
-                reward += 50
+                reward += 100
     # If box is not in attachment
     else:
         if np.any(red_grid[:] == 1):
             # If robot sees box in the center
-            if np.any(red_grid[: ,1] == 1) :
+            if np.any(red_grid[: ,1] == 1) and red_grid[0 , 0] == 0 and red_grid[0 , 2] == 0:
                 reward += 25
                 # reward forward
                 if action_idx < 3:
@@ -239,7 +239,7 @@ def task_3_run_single_trial(rob, runs=20, episodes=10, alpha=0.1, gamma=0.9, eps
                     rob.stop_simulation()
                     rob.play_simulation()
                     rob.set_phone_tilt_blocking(109, 30)
-                    reward += 500
+                    reward += 2000
                 
                 total_run_reward += reward
                 print(f"Reward in run {run}, episode {ep}, step {step}: {reward}, hit_wall: {hit_wall}, Red Grid: {red_grid}, Green Grid: {green_grid}, Current Action : {action_idx}, Previous Action: {previous_action_idx}")
