@@ -83,7 +83,7 @@ def get_state(irs, red_grid, green_grid):
     return tuple(discrete_front + discrete_back + [2 * a + b for a, b in zip(to_list(red_grid), to_list(green_grid))]
 )
 
-def get_reward(hit_wall, red_grid, green_grid, action_idx, previous_action_idx):
+def get_reward(hit_wall, red_grid, green_grid, action_idx, previous_action_idx, sim_time):
     reward = 0.0
 
     # If box is in attachment
@@ -144,7 +144,9 @@ def get_reward(hit_wall, red_grid, green_grid, action_idx, previous_action_idx):
     # Punish for performing opposite actions 
     if previous_action_idx and OPPOSITE_ACTIONS[action_idx] == previous_action_idx:
         reward -= 50
+    
 
+    reward -= sim_time*3
     return reward
 
 #this function runs a single trial of Qlearning. in this case 10 runs, each run containing 10 episodes
@@ -233,7 +235,7 @@ def task_3_run_single_trial(rob, runs=20, episodes=10, alpha=0.1, gamma=0.9, eps
                         run_straight_hits += 1
                 
                 
-                reward = get_reward(hit_wall, red_grid, green_grid, action_idx, previous_action_idx)
+                reward = get_reward(hit_wall, red_grid, green_grid, action_idx, previous_action_idx, rob.get_sim_time())
                 
                 if rob.base_detects_food():
                     rob.stop_simulation()
@@ -403,7 +405,7 @@ def task_3_real_life(
     if sim_mode:
         rob.set_phone_tilt_blocking(109, 30)
     else: 
-        rob.set_phone_tilt_blocking(98, 30)
+        rob.set_phone_tilt_blocking(109, 30)
     red_grid = np.zeros(9)
     green_grid = np.zeros(9)
 
@@ -458,6 +460,7 @@ def task_3_real_life(
             cv2.imwrite("/root/results/red_block_mask.png", mask)
             # -------------- update state for next step ------------------
             next_irs  = rob.read_irs()
+            print(f'Green Grid: {green_grid}, Red Grid: {red_grid}')
             state     = get_state(next_irs, red_grid, green_grid)
 
             if sim_mode and rob.base_detects_food() :
